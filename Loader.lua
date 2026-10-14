@@ -2604,14 +2604,23 @@ local main=function()
 		if not isMp3(data) then
 			data=nil
 			local tried={}
+			--the file on github can be named a bit different (upper/lower case, extension)
+			local lower=song.name:lower()
+			local title=lower:gsub("(%a)(%a*)",function(a,b) return a:upper()..b end)
+			local names={song.name..".mp3",lower..".mp3",title..".mp3",song.name..".MP3",song.name:gsub(" ","_")..".mp3"}
 			for _,base in next,REPOS do
-				local url=base.."Music/"..urlencode(song.name)..".mp3"
-				local ok,res=pcall(game.HttpGet,game,url)
-				if ok and isMp3(res) then
-					data=res
+				for _,file in next,names do
+					local url=base.."Music/"..urlencode(file)
+					local ok,res=pcall(game.HttpGet,game,url)
+					if ok and isMp3(res) then
+						data=res
+						break
+					end
+					tinsert(tried,url)
+				end
+				if data then
 					break
 				end
-				tinsert(tried,url)
 			end
 			if not data then
 				error("no mp3 found, tried:\n"..table.concat(tried,"\n"))
@@ -2981,19 +2990,30 @@ local main=function()
 		axe={kind="long",hand="right",grip=0.22,dir=DIR_HOLD},
 		mace={kind="long",hand="right",grip=0.2,dir=DIR_HOLD},
 		rod={kind="long",hand="right",grip=0.15,dir=v3(0,0.25,-0.968).Unit},
-		apple={kind="small",hand="right",pos=v3(0,-1.05,-0.2)},
-		pearl={kind="small",hand="right",pos=v3(0,-1.05,-0.2)},
-		totem={kind="small",hand="left",pos=v3(0,-1.05,-0.35)},
+		apple={kind="small",hand="right",pos=v3(0,-1.05,-0.2),yaw=-pi/2,up=0.5},
+		pearl={kind="small",hand="right",pos=v3(0,-1.05,-0.2),yaw=-pi/2,up=0.5},
+		totem={kind="small",hand="left",pos=v3(0,-1.05,-0.35),yaw=-pi/2,up=0.5},
 		shield={kind="shield",hand="left"},
 		elytra={kind="worn"},
 		helmet={kind="worn"},
 		tnt={kind="small",hand="right",pos=v3(0,-1.05,-0.2)} --only shown in the hand by the calibration, otherwise it falls from the sky (orbital strike)
 	}
-	local SHIELD_IDLE=fm(v3(-0.75,-0.1,0),v3(0,1,0),v3(-1,0,0)) --strapped to the outside of the left arm (arm space)
-	local SHIELD_BLOCK=fm(v3(-0.85,0.35,-1.8),v3(0,1,0),v3(0,0,-1)) --held up in front of you (torso space)
-	local HELM_HAND=fm(v3(0,-1.1,-0.1),v3(0,1,0),v3(0,0,-1)) --in the left hand (arm space)
-	local HELM_WORN=fm(v3(0,0.1,0),v3(0,1,0),v3(0,0,-1)) --on the head (head space)
-	local ELYTRA_BACK=fm(v3(0,0.2,0.62),v3(0,1,0),v3(0,0,1)) --on the back (torso space)
+	--rotations are in the hat's own axes (y 90 = angles(0,pi/2,0), z 180 = angles(0,0,pi))
+	local SHIELD_FIX=angles(0,pi/2,pi)
+	local HELM_FIX=angles(0,-pi/2,-pi/2) --z -90 and y -90
+	local SHIELD_IDLE=cfMul(fm(v3(-0.75,-0.1,0),v3(0,1,0),v3(-1,0,0)),SHIELD_FIX) --strapped to the outside of the left arm (arm space)
+	local SHIELD_BLOCK=cfMul(fm(v3(-0.85,0.35,-1.8),v3(0,1,0),v3(0,0,-1)),SHIELD_FIX) --held up in front of you (torso space)
+	local HELM_HAND=cfMul(fm(v3(0,-1.1,-0.1),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --in the left hand (arm space)
+	local HELM_WORN=cfMul(fm(v3(0,0.1,0),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --on the head (head space)
+	local ELYTRA_BACK=fm(v3(0,-1.0,0.62),v3(0,1,0),v3(0,0,1)) --on the back (torso space), 1.2 studs lower than before
+	--tweak keys: yaw = turned on its own y axis (radians), up = moved up in studs
+	local TWEAK={mace={yaw=0,up=0},axe={yaw=0,up=0},rod={yaw=0,up=0}}
+	local TWEAK_YAW_STEP=rad(15)
+	local TWEAK_KEYS={ --key name -> {item, what, amount}
+		LeftBracket={"mace","yaw"},RightBracket={"mace","up",0.1},
+		Semicolon={"axe","yaw"},Quote={"axe","up",0.1},
+		Comma={"rod","yaw"},Period={"rod","up",-0.1}
+	}
 	local UPFWD_Z=v3(0,0,-1)
 
 	local KEYS_SWORD=K{{0,5,10,0},{0.28,160,30,-25},{0.5,35,-30,25},{0.72,12,-10,10},{1,5,10,0}}
@@ -3411,28 +3431,35 @@ local main=function()
 				j.C1=cfMul(target,h.hci)
 			end
 			local hideCF=cf(0,-HIDE_DEPTH,0)
+			local worldTarget=function(worldCF)
+				return cfMul(Inverse(cframes[rootP]),worldCF)
+			end
 			local hide=function(h)
-				place(h,rootP,hideCF)
+				if S.groundY then
+					--elytra on: hidden hats stay at the height they had on the ground (underground) instead of rising with you
+					local here=t.getCfr().Position
+					place(h,rootP,worldTarget(cf(here.X,S.groundY-HIDE_DEPTH,here.Z)))
+				else
+					place(h,rootP,hideCF)
+				end
 			end
 			local holdTarget=function(key,h,spin)
 				local d=ITEM[key]
+				local tw=TWEAK[key]
+				local up=v3(0,(tw and tw.up or 0)+(d.up or 0),0)
+				local yaw=(tw and tw.yaw or 0)+(d.yaw or 0)+(spin or 0)
+				local tg
 				if d.kind=="long" then
 					local len=h.len or 4
-					local center=v3(0,-1,0)+d.dir*(len*(0.5-d.grip))
-					local tg=fm(center,d.dir,v3(1,0,0))
-					if spin and (spin~=0) then
-						tg=cfMul(tg,angles(0,spin,0))
-					end
-					return tg
+					local center=v3(0,-1,0)+d.dir*(len*(0.5-d.grip))+up
+					tg=fm(center,d.dir,v3(1,0,0))
+				else
+					tg=fm(d.pos+up,v3(0,1,0),UPFWD_Z)
 				end
-				local tg=fm(d.pos,v3(0,1,0),UPFWD_Z)
-				if spin and (spin~=0) then
-					tg=cfMul(tg,angles(0,spin,0))
+				if yaw~=0 then
+					tg=cfMul(tg,angles(0,yaw,0))
 				end
 				return tg
-			end
-			local worldTarget=function(worldCF)
-				return cfMul(Inverse(cframes[rootP]),worldCF)
 			end
 
 			----------------------------------------------------------------
@@ -3472,7 +3499,6 @@ local main=function()
 					return --only works when you are falling and at least 3 studs above the ground
 				end
 				S.attackCd=sine+0.9
-				t.launch(math.min(t.getYvel(),-70)) --dive down with the hit
 				startAct("slam",KEYS_MACE,0.75,0.44,function()
 					local here=t.getCfr().Position
 					for _,plr in next,GetPlayers(plrs) do
@@ -3482,7 +3508,7 @@ local main=function()
 								local d=insGet(rp,"Position")-here
 								local flat=sqrt(v3Get(d,"X")^2+v3Get(d,"Z")^2)
 								if (flat<=5) and (abs(v3Get(d,"Y"))<=3) then
-									t.launch(70) --wind burst: the hit throws you up again
+									t.launch(55) --wind burst: the hit throws you up again (a bit more than a jump, much more makes the hats lose you)
 									return
 								end
 							end
@@ -3600,6 +3626,7 @@ local main=function()
 			local toggleElytra=function()
 				S.calibShow=nil
 				S.elytra=not S.elytra
+				S.groundY=S.elytra and t.getCfr().Position.Y or nil
 				if not S.elytra then
 					stopGlide()
 					t.impulse(v3_0)
@@ -3617,6 +3644,7 @@ local main=function()
 				S.right=nil
 				S.left=nil
 				S.elytra=false
+				S.groundY=nil
 				S.helmet=false
 				S.helm=nil
 				S.act=nil
@@ -3691,6 +3719,14 @@ local main=function()
 				if sine>=S.nextResolve then
 					S.nextResolve=sine+1
 					resolve()
+				end
+
+				--elytra on: remember the height you had on the ground, hidden hats stay down there
+				if S.elytra and (not S.gliding) and (not t.impulseActive()) then
+					local dist=t.groundDistance()
+					if dist and (dist<3.4) then
+						S.groundY=t.getCfr().Position.Y
+					end
 				end
 
 				--glide ends when you land and the boost has run out (not in the first moments, you are still on the ground then)
@@ -3949,7 +3985,15 @@ local main=function()
 				elseif name=="Left" then music.step(-1)
 				elseif name=="Up" then music.volumeStep(0.1)
 				elseif name=="Down" then music.volumeStep(-0.1)
-				elseif (name=="LeftBracket") or (name=="RightBracket") or (name=="BackSlash") then calibrate(name)
+				elseif TWEAK_KEYS[name] then
+					local k=TWEAK_KEYS[name]
+					local tw=TWEAK[k[1]]
+					if k[2]=="yaw" then
+						tw.yaw=tw.yaw+TWEAK_YAW_STEP
+					else
+						tw.up=tw.up+k[3]
+					end
+					print(string.format("Wemmbu FE: %s yaw %.0f degrees, up %.1f studs   ->   TWEAK.%s={yaw=rad(%.0f),up=%.1f}",k[1],math.deg(tw.yaw),tw.up,k[1],math.deg(tw.yaw),tw.up))
 				end
 			end))
 			tinsert(cons,Connect(insGet(uis,"InputEnded"),function(inp)
