@@ -1584,6 +1584,7 @@ local reanimate=function()
 	local extvel=v3_0
 	local extdrag=2.5
 	local pendingLaunch=nil
+	local exactUntil=0
 	local mainFunction=function()
 		sine=osclock()
 		local delta=sine-lastsine
@@ -2014,6 +2015,10 @@ local reanimate=function()
 							insSet(part,"AssemblyLinearVelocity",vel1*v3_xz+v3_net)
 						end
 					end
+					if sine<exactUntil then
+						--during a boost / launch the hats really move fast: give them the velocity they really have (the usual 10x trick would say "standing still")
+						insSet(part,"AssemblyLinearVelocity",vel)
+					end
 					insSet(part,"CFrame",v)
 					insSet(part,"AssemblyAngularVelocity",idlerv)
 					if i.prot then
@@ -2200,9 +2205,11 @@ local reanimate=function()
 	local launch=function(vy) --sets the y velocity, also works when standing on the ground
 		Yvel=vy
 		pendingLaunch=vy
+		exactUntil=osclock()+1.6
 	end
 	local impulse=function(v,drag) --extra velocity in studs/s that slows down by drag per second, no gravity while it lasts
 		extvel=v
+		exactUntil=osclock()+2.5
 		extdrag=drag or 2.5
 	end
 	local impulseActive=function() --true while the extra velocity of impulse() is still moving you
@@ -2330,7 +2337,7 @@ local main=function()
 		{name="ALTERED OBSIDIAN"},
 		{name="BATTLE UNDER A BROKEN SKY"},
 		{name="CHAOS CONSTRUCT"},
-		{name="DEADLOCK"},
+		{name="DEADLOCKED"},
 		{name="PLAYFUL MASSACRE"},
 		{name="PLAYING WITH FIRE"}
 	}
@@ -2546,13 +2553,13 @@ local main=function()
 	----------------------------------------------------------------------------
 	-- loading screen
 	----------------------------------------------------------------------------
-	local showLoading=function()
+	local showLoading=function(titleText,subText,seconds)
 		local gui=newGui(2147483647)
 		local overlay=mk("Frame",{Name=rs(),Size=u2(1,0,1,0),BackgroundColor3=c3(0,0,0),BackgroundTransparency=1,BorderSizePixel=0},gui)
 		local common={BackgroundTransparency=1,TextTransparency=1,AnchorPoint=v2(0.5,0.5)}
-		local title=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,-30),Size=u2(0,900,0,120),Text="Noctalia",Font=e.Font.GothamBold,TextSize=100,TextColor3=c3(1,1,1)},overlay)
-		local sub=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,50),Size=u2(0,900,0,26),Text="Open console by pressing F9 or typing /console in chat.",Font=e.Font.Gotham,TextSize=20,TextColor3=rgb(150,150,150)},overlay)
-		local count=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,84),Size=u2(0,300,0,26),Text="5s",Font=e.Font.Gotham,TextSize=20,TextColor3=rgb(150,150,150)},overlay)
+		local title=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,-30),Size=u2(0,900,0,120),Text=titleText,Font=e.Font.GothamBold,TextSize=100,TextColor3=c3(1,1,1)},overlay)
+		local sub=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,50),Size=u2(0,900,0,26),Text=subText,Font=e.Font.Gotham,TextSize=20,TextColor3=rgb(150,150,150)},overlay)
+		local count=mk("TextLabel",{Name=rs(),Position=u2(0.5,0,0.5,84),Size=u2(0,300,0,26),Text=seconds.."s",Font=e.Font.Gotham,TextSize=20,TextColor3=rgb(150,150,150)},overlay)
 		for _,l in next,{title,sub,count} do
 			for k,v in next,common do
 				l[k]=v
@@ -2564,7 +2571,7 @@ local main=function()
 			for _,l in next,{title,sub,count} do
 				tween(l,{TextTransparency=0},0.5)
 			end
-			for s=5,1,-1 do
+			for s=seconds,1,-1 do
 				count.Text=s.."s"
 				twait(1)
 			end
@@ -2816,6 +2823,7 @@ local main=function()
 			Name=rs(),AnchorPoint=v2(0.5,0.5),Position=u2(0.5,0,0.5,0),Size=u2(0,750,0,750),
 			BackgroundTransparency=1,BorderSizePixel=0,Image=PRE.decal or ("rbxassetid://"..DECAL_ID),ImageTransparency=1
 		},gui)
+		mk("UICorner",{CornerRadius=UDim.new(0,15)},img)
 		--the labels sit on the part of the decal that stays on screen (the decal is 50 studs outside the top right corner, so that is a 150x150 square)
 		local holder=mk("Frame",{Name=rs(),AnchorPoint=v2(0.5,0.5),Position=u2(1,-75,0,75),Size=u2(0,140,0,130),BackgroundTransparency=1},gui)
 		mk("UIListLayout",{SortOrder=e.SortOrder.LayoutOrder,HorizontalAlignment=e.HorizontalAlignment.Center,VerticalAlignment=e.VerticalAlignment.Center,Padding=UDim.new(0,2)},holder)
@@ -2825,10 +2833,10 @@ local main=function()
 				TextTransparency=1,TextStrokeTransparency=1,TextStrokeColor3=c3(0,0,0),TextWrapped=true
 			},holder)
 		end
-		local l1=makeLabel(1,"Currently playing:",12,rgb(190,190,190),e.Font.Gotham,16)
+		local l1=makeLabel(1,"Currently playing:",12,rgb(190,190,190),e.Font.GothamBold,16)
 		local l2=makeLabel(2,"",15,c3(1,1,1),e.Font.GothamBold,36)
-		local l3=makeLabel(3,ARTIST,13,rgb(190,190,190),e.Font.Gotham,16)
-		local l4=makeLabel(4,"00:00/00:00",13,rgb(190,190,190),e.Font.Gotham,16)
+		local l3=makeLabel(3,ARTIST,13,rgb(190,190,190),e.Font.GothamBold,16)
+		local l4=makeLabel(4,"00:00/00:00",13,rgb(190,190,190),e.Font.GothamBold,16)
 		local labels={l1,l2,l3,l4}
 		local t0=osclock()
 		local lastIndex=nil
@@ -2865,6 +2873,42 @@ local main=function()
 	----------------------------------------------------------------------------
 	-- loading the hats (chat commands of Just A Baseplate)
 	----------------------------------------------------------------------------
+	--types the message into the real chat bar and presses enter (the only way "/e" commands work with the new chat), plain chat if there is no chat bar
+	local hatsBusy=false
+	local typeChat=function(message)
+		local ok=pcall(function()
+			local tcs=FindFirstChildOfClass(game,"TextChatService")
+			local config=tcs and tcs:FindFirstChild("ChatInputBarConfiguration")
+			local box=config and config.TextBox
+			if not box then
+				local ec=FindFirstChildOfClass(game,"CoreGui"):FindFirstChild("ExperienceChat")
+				box=ec and ec:FindFirstChild("TextBox",true)
+			end
+			assert(box,"no chat bar")
+			box:CaptureFocus()
+			twait(0.05)
+			box.Text=message
+			twait(0.05)
+			local pressed=pcall(function()
+				local vim=game:GetService("VirtualInputManager")
+				vim:SendKeyEvent(true,e.KeyCode.Return,false,game)
+				twait(0.02)
+				vim:SendKeyEvent(false,e.KeyCode.Return,false,game)
+			end)
+			if not pressed then
+				if keypress and keyrelease then
+					keypress(0x0D)
+					twait(0.02)
+					keyrelease(0x0D)
+				elseif firesignal then
+					firesignal(box.FocusLost,true)
+				end
+			end
+		end)
+		if not ok then
+			sendChat(message)
+		end
+	end
 	local loadHats=function()
 		if game.PlaceId~=JUST_A_BASEPLATE then
 			warn("Wemmbu FE: hats only load in Just A Baseplate")
@@ -2874,13 +2918,22 @@ local main=function()
 			warn("Wemmbu FE: stop the reanimate first (press 0), then load the hats")
 			return
 		end
+		if hatsBusy then
+			return
+		end
+		hatsBusy=true
 		print("Wemmbu FE: loading hats...")
+		showLoading("Wait!","The hats are loading, do not touch anything",7)
 		tspawn(function()
-			sendChat("-ch")
+			typeChat("/e -ch")
 			twait(0.3)
-			sendChat("-pd")
+			typeChat("/e -pd")
 			twait(0.3)
-			sendChat("-gh "..table.concat(ALL_IDS," "))
+			typeChat("/e -gh 124575002491795 101716545946094 116696255755442 82568259312062 130626434409219 136738875728760 76207029079860 127306158366923 104075618225813 118384788583276 99393954464842 73520544743028")
+			twait(6.5)
+			typeChat("/e -gh 85211796680168 74713040247427 85039820346123 92170934617492 71625956595175")
+			twait(1)
+			hatsBusy=false
 		end)
 	end
 
@@ -2990,24 +3043,29 @@ local main=function()
 		axe={kind="long",hand="right",grip=0.22,dir=DIR_HOLD},
 		mace={kind="long",hand="right",grip=0.2,dir=DIR_HOLD},
 		rod={kind="long",hand="right",grip=0.15,dir=v3(0,0.25,-0.968).Unit},
-		apple={kind="small",hand="right",pos=v3(0,-1.05,-0.2),yaw=-pi/2,up=0.5},
-		pearl={kind="small",hand="right",pos=v3(0,-1.05,-0.2),yaw=-pi/2,up=0.5},
-		totem={kind="small",hand="left",pos=v3(0,-1.05,-0.35),yaw=-pi/2,up=0.5},
+		apple={kind="small",hand="right",pos=v3(0,-0.55,-0.7),yaw=pi/2}, --0.5 up and 0.5 forward
+		pearl={kind="small",hand="right",pos=v3(0,-0.55,-0.7),yaw=pi/2},
+		totem={kind="small",hand="left",pos=v3(0,-0.55,-0.85),yaw=pi/2},
 		shield={kind="shield",hand="left"},
 		elytra={kind="worn"},
 		helmet={kind="worn"},
 		tnt={kind="small",hand="right",pos=v3(0,-1.05,-0.2)} --only shown in the hand by the calibration, otherwise it falls from the sky (orbital strike)
 	}
 	--rotations are in the hat's own axes (y 90 = angles(0,pi/2,0), z 180 = angles(0,0,pi))
-	local SHIELD_FIX=angles(0,pi/2,pi)
-	local HELM_FIX=angles(0,-pi/2,-pi/2) --z -90 and y -90
+	local SHIELD_FIX=angles(0,-pi/2,pi) --y -90 and z 180
+	local HELM_FIX=angles(0,pi/2,pi/2) --y 90 and z 90
 	local SHIELD_IDLE=cfMul(fm(v3(-0.75,-0.1,0),v3(0,1,0),v3(-1,0,0)),SHIELD_FIX) --strapped to the outside of the left arm (arm space)
 	local SHIELD_BLOCK=cfMul(fm(v3(-0.85,0.35,-1.8),v3(0,1,0),v3(0,0,-1)),SHIELD_FIX) --held up in front of you (torso space)
 	local HELM_HAND=cfMul(fm(v3(0,-1.1,-0.1),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --in the left hand (arm space)
 	local HELM_WORN=cfMul(fm(v3(0,0.1,0),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --on the head (head space)
-	local ELYTRA_BACK=fm(v3(0,-1.0,0.62),v3(0,1,0),v3(0,0,1)) --on the back (torso space), 1.2 studs lower than before
-	--tweak keys: yaw = turned on its own y axis (radians), up = moved up in studs
-	local TWEAK={mace={yaw=0,up=0},axe={yaw=0,up=0},rod={yaw=0,up=0}}
+	local ELYTRA_BACK=fm(v3(0,-1.0,0.92),v3(0,1,0),v3(0,0,1)) --on the back (torso space), 1.2 studs lower and 0.3 further back than the first version
+	--tweak keys: yaw = turned on its own y axis (radians), up = moved up in studs, flip = turned over on its z axis (radians)
+	local TWEAK={
+		sword={yaw=0,up=0.2},
+		mace={yaw=rad(180),up=0.7,flip=pi},
+		axe={yaw=rad(180),up=0.5},
+		rod={yaw=rad(180),up=-0.8}
+	}
 	local TWEAK_YAW_STEP=rad(15)
 	local TWEAK_KEYS={ --key name -> {item, what, amount}
 		LeftBracket={"mace","yaw"},RightBracket={"mace","up",0.1},
@@ -3458,6 +3516,9 @@ local main=function()
 				end
 				if yaw~=0 then
 					tg=cfMul(tg,angles(0,yaw,0))
+				end
+				if tw and tw.flip then
+					tg=cfMul(tg,angles(0,0,tw.flip))
 				end
 				return tg
 			end
@@ -4053,7 +4114,7 @@ local main=function()
 		end
 	end
 
-	showLoading()
+	showLoading("Noctalia","Open console by pressing F9 or typing /console in chat.",5)
 	printConsole()
 	startPreload()
 end
