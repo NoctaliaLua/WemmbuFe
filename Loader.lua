@@ -323,14 +323,13 @@ local flingtable={}
 local plrcleanups={}
 local onnewcamera=nil
 
---settings, the old patchma settings list is gone. these are the values its defaults had, except ctrl click tp and click fling which are off
---(left click is used by the weapons now, the fling code stays in the engine but nothing can start it)
+--settings, the old patchma settings list is gone. these are the values its defaults had (ctrl click tp and click fling are on)
 local hlparent=nil --where the fling highlights go, set when the gui is built
 local restoreAllowSleep=nil
 placeholders=true
 highlightflingtargets=true
 allowshiftlock=true
-ctrltp=false
+ctrltp=false --off: left click is used by the weapons
 clickfling=false
 flingtargetting=(sethiddenproperty and 3) or (setscriptable and 2) or 0
 flingoffset=-v3_010
@@ -1584,7 +1583,13 @@ local reanimate=function()
 	local extvel=v3_0
 	local extdrag=2.5
 	local pendingLaunch=nil
-	local exactUntil=0
+	local lostlog={} --hats that are not ours right now (only used to print why a hat was lost)
+	lostlog.name=function(part)
+		local ok,n=pcall(function()
+			return insGet(insGet(part,"Parent"),"Name")
+		end)
+		return (ok and n) or "a hat"
+	end
 	local mainFunction=function()
 		sine=osclock()
 		local delta=sine-lastsine
@@ -1621,9 +1626,12 @@ local reanimate=function()
 			mouseCameraMove=false
 		end
 
+		--the extra velocity moves you like walking does, extnow (only x and z) is added to the walking velocity the hats get below
 		local extmoved=false
+		local extnow=v3_0
 		if extvel~=v3_0 then
 			extmoved=true
+			extnow=extvel*v3_101
 			pos=pos+extvel*delta
 			extvel=extvel*math.max(0,1-delta*extdrag)
 			if vmagnitude(extvel)<2 then
@@ -1988,8 +1996,7 @@ local reanimate=function()
 					end
 					local claimtime=i.c
 					if claimtime then
-						--protected hats (.prot) keep the reclaim velocity twice as long after they were lost
-						if (sine-claimtime)<(i.prot and (retVelTime*2) or retVelTime) then
+						if (sine-claimtime)<retVelTime then
 							local offsetToPrimaryPart=claimpos-cfGet(v,"Position")
 							local a=625.5001+wsGravity*-2*v3Get(offsetToPrimaryPart,"Y")
 							if a>0 then --part can reach primary part
@@ -1998,7 +2005,7 @@ local reanimate=function()
 								insSet(part,"AssemblyLinearVelocity",v3_net+offsetToPrimaryPart*v3_101/(30.010999900019996/wsGravity))
 							end
 						else
-							local vel1=vel*noYvelTime+xzvel
+							local vel1=vel*noYvelTime+xzvel+extnow
 							if vmagnitude(vel1)>25.01 then
 								insSet(part,"AssemblyLinearVelocity",vnormalize(vel1)*v3_xzL+v3_net)
 							else
@@ -2007,38 +2014,37 @@ local reanimate=function()
 						end
 					else
 						i.c=sine
+						if lostlog[i] then
+							lostlog[i]=nil
+							print("Wemmbu FE: got "..lostlog.name(part).." back")
+						end
 						insSet(part,"CanCollide",false) --collisions between hats (or with the map) push them out of place
-						local vel1=vel*noYvelTime+xzvel
+						local vel1=vel*noYvelTime+xzvel+extnow
 						if vmagnitude(vel1)>25.01 then
 							insSet(part,"AssemblyLinearVelocity",vnormalize(vel1)*v3_xzL+v3_net)
 						else
 							insSet(part,"AssemblyLinearVelocity",vel1*v3_xz+v3_net)
 						end
 					end
-					if sine<exactUntil then
-						--during a boost / launch the hats really move fast: give them the velocity they really have (the usual 10x trick would say "standing still")
-						insSet(part,"AssemblyLinearVelocity",vel)
-					end
 					insSet(part,"CFrame",v)
 					insSet(part,"AssemblyAngularVelocity",idlerv)
-					if i.prot then
-						--extra protection against hats being taken away when other players are close: remember the target so it can be written
-						--again right before the physics step (see the stepped connection below), and keep the hat from colliding / touching anything
-						i.tc=v
-						i.tv=insGet(part,"AssemblyLinearVelocity")
-						if insGet(part,"CanCollide") then
-							insSet(part,"CanCollide",false)
-						end
-						if insGet(part,"CanTouch") then
-							insSet(part,"CanTouch",false)
-						end
-					end
 				else
+					if i.c and not lostlog[i] then
+						--only prints, changes nothing: tells which hat was lost and why
+						lostlog[i]=true
+						local why=(GetJoints(part)[1] and "something welded it") or ("someone else is simulating it (ReceiveAge "..tostring(insGet(part,"ReceiveAge"))..")")
+						local nearest=nil
+						local ppos=insGet(part,"Position")
+						for _,rp in next,rootparts do
+							local d=vmagnitude(insGet(rp,"Position")-ppos)
+							if (not nearest) or (d<nearest) then
+								nearest=d
+							end
+						end
+						warn("Wemmbu FE: lost "..lostlog.name(part)..": "..why..", nearest other player "..(nearest and (math.floor(nearest*10)/10).." studs" or "none")..", you are "..(math.floor(vmagnitude(pos-ppos)*10)/10).." studs away")
+					end
 					i.c=nil
-					i.tc=nil
 					i.l=insGet(part,"Position")
-					--(not owned: the part is welded to something or someone else simulates it, so it must not be moved from here. the placeholder
-					--below keeps showing where it belongs and the next frame it is ours again it goes right back to that spot)
 					local placeholder=i.v
 					if placeholder then
 						insSet(placeholder,"CFrame",v)
@@ -2066,24 +2072,6 @@ local reanimate=function()
 	sine=osclock()
 	lastsine=sine
 	tinsert(cons,Connect(heartbeat,mainFunction))
-	--protected hats (see the hat loop above): write the target again right before the physics step, so whatever pushed them since the
-	--heartbeat (other players walking into them, the physics solver) doesnt move them. only for hats we are simulating
-	tinsert(cons,Connect(stepped,function()
-		for i,_ in next,cframes do
-			if i.prot then
-				local tc=i.tc
-				local part=i.p
-				if tc and part then
-					if (insGet(part,"ReceiveAge")==0) and not GetJoints(part)[1] then
-						insSet(part,"AssemblyLinearVelocity",i.tv)
-						insSet(part,"CFrame",tc)
-					else
-						i.tc=nil
-					end
-				end
-			end
-		end
-	end))
 	mainFunction()
 
 	local refreshjoints=function(v) --use this on the main part if u have parts that
@@ -2202,14 +2190,12 @@ local reanimate=function()
 	local getYvel=function() --returns the y velocity (negative = falling)
 		return Yvel
 	end
-	local launch=function(vy) --sets the y velocity, also works when standing on the ground
+	local launch=function(vy) --sets the y velocity, also works when standing on the ground (like a jump)
 		Yvel=vy
 		pendingLaunch=vy
-		exactUntil=osclock()+1.6
 	end
 	local impulse=function(v,drag) --extra velocity in studs/s that slows down by drag per second, no gravity while it lasts
 		extvel=v
-		exactUntil=osclock()+2.5
 		extdrag=drag or 2.5
 	end
 	local impulseActive=function() --true while the extra velocity of impulse() is still moving you
@@ -2309,7 +2295,7 @@ local main=function()
 	local DECAL_ID="128957407867408"
 	local ARM_OUT=0.2 --studs every animation moves the arms away from the torso
 	local armIn=0.35-ARM_OUT --nameless animations v8 had its arms pulled in by 0.35 studs
-	local HIDE_DEPTH=14 --hidden hats sit this many studs below the root part
+	local HIDE_DEPTH=19 --hidden hats sit this many studs below the root part (same as NoctaliaGlitcher)
 	local HOLD_OUT=math.rad(10) --the arm that holds an item turns out this much
 	local MACE_MIN_HEIGHT=3 --studs between your feet and the ground before the mace slam works
 	local PEARL_COOLDOWN=5
@@ -3183,7 +3169,7 @@ local main=function()
 				act=nil,inspect=nil,eatStart=nil,helm=nil,
 				pearl=nil,pearlCd=0,tnt=nil,
 				gliding=false,glideStart=0,boostCd=0,
-				attackCd=0,mb3=false,fastUntil=0,nearCheck=0,near=false,
+				attackCd=0,mb3=false,
 				outR=0,outL=0,wR=0,wL=0,blockW=0,lastR=nil,lastL=nil,
 				calibShow=nil,calibIdx=0,
 				nextResolve=0
@@ -3426,21 +3412,15 @@ local main=function()
 				for _,h in next,items do
 					used[h.part]=true
 				end
-				for _,key in next,ITEM_KEYS do
-					if not items[key] then
-						items[key]=findItem(key,used)
-						if items[key] then
-							missing[key]=nil
-						end
-					end
-				end
+				--the body hats first, so an item with a similar mesh can never take one of them
 				for _,b in next,BODY do
 					local info=hatmeshes[HAT[b.key]]
 					if info then
 						for part in next,cframes do
 							if part.m and sfind(part.m,info.m) and sfind(part.t,info.t) then
+								used[part]=true
 								if (b.key=="head") or (b.key=="torso") then
-									part.fx=true --the head and the torso were the ones that fell off, they get the same treatment as the swords of NoctaliaGlitcher
+									part.fx=true --same as the swords of NoctaliaGlitcher (since this the head and torso stopped falling off when walking near players)
 								end
 								if not bodyJoint[b.key] then
 									local j=getPartJoint(part)
@@ -3453,15 +3433,11 @@ local main=function()
 						end
 					end
 				end
-				--extra protection: every hat of this script is flagged, the engine looks after those more closely (see .prot in the engine)
-				for part in next,cframes do
-					if part.m and not part.prot then
-						for _,id in next,ALL_IDS do
-							local info=hatmeshes[id]
-							if info and sfind(part.m,info.m) and sfind(part.t,info.t) then
-								part.prot=true
-								break
-							end
+				for _,key in next,ITEM_KEYS do
+					if not items[key] then
+						items[key]=findItem(key,used)
+						if items[key] then
+							missing[key]=nil
 						end
 					end
 				end
@@ -3499,14 +3475,8 @@ local main=function()
 			local worldTarget=function(worldCF)
 				return cfMul(Inverse(cframes[rootP]),worldCF)
 			end
-			local hide=function(h)
-				if S.groundY then
-					--elytra on: hidden hats stay at the height they had on the ground (underground) instead of rising with you
-					local here=t.getCfr().Position
-					place(h,rootP,worldTarget(cf(here.X,S.groundY-HIDE_DEPTH,here.Z)))
-				else
-					place(h,rootP,hideCF)
-				end
+			local hide=function(h) --exactly like NoctaliaGlitcher: under the root part, moving with you
+				place(h,rootP,hideCF)
 			end
 			local holdTarget=function(key,h,spin)
 				local d=ITEM[key]
@@ -3579,8 +3549,7 @@ local main=function()
 								local d=insGet(rp,"Position")-here
 								local flat=sqrt(v3Get(d,"X")^2+v3Get(d,"Z")^2)
 								if (flat<=5) and (abs(v3Get(d,"Y"))<=3) then
-									S.fastUntil=sine+1.6
-									t.launch(55) --wind burst: the hit throws you up again (a bit more than a jump, much more makes the hats lose you)
+										t.launch(55) --wind burst: the hit throws you up again (a bit more than a jump, much more makes the hats lose you)
 									return
 								end
 							end
@@ -3687,7 +3656,6 @@ local main=function()
 			local toggleElytra=function()
 				S.calibShow=nil
 				S.elytra=not S.elytra
-				S.groundY=S.elytra and t.getCfr().Position.Y or nil
 				if not S.elytra then
 					stopGlide()
 					t.impulse(v3_0)
@@ -3705,7 +3673,6 @@ local main=function()
 				S.right=nil
 				S.left=nil
 				S.elytra=false
-				S.groundY=nil
 				S.helmet=false
 				S.helm=nil
 				S.act=nil
@@ -3781,14 +3748,6 @@ local main=function()
 				if sine>=S.nextResolve then
 					S.nextResolve=sine+1
 					resolve()
-				end
-
-				--elytra on: remember the height you had on the ground, hidden hats stay down there
-				if S.elytra and (not S.gliding) and (not t.impulseActive()) then
-					local dist=t.groundDistance()
-					if dist and (dist<3.4) then
-						S.groundY=t.getCfr().Position.Y
-					end
 				end
 
 				--glide ends when you land and the boost has run out (not in the first moments, you are still on the ground then)
@@ -3903,36 +3862,14 @@ local main=function()
 				--hats
 				tclear(wp)
 				tclear(wt)
-				--flying / being launched fast past another player with a big weapon in the hand makes everything fall off (the player's body touches the
-				--weapon and takes the hats over), so the held items stay underground until you are away from them or slow again
-				local tuck=false
-				if S.gliding or t.impulseActive() or (sine<S.fastUntil) then
-					if sine>=S.nearCheck then
-						S.nearCheck=sine+0.1
-						S.near=false
-						local here=t.getCfr().Position
-						for _,plr in next,GetPlayers(plrs) do
-							if plr~=me then
-								local rp2=rootOf(plr)
-								if rp2 and ((insGet(rp2,"Position")-here).Magnitude<40) then
-									S.near=true
-									break
-								end
-							end
-						end
-					end
-					tuck=S.near
-				else
-					S.near=false
-				end
-				if rightKey and not tuck then
+				if rightKey then
 					local h=items[rightKey]
 					if h and ITEM[rightKey].hand=="right" then
 						wp[rightKey]=rarmP
 						wt[rightKey]=holdTarget(rightKey,h,spin)
 					end
 				end
-				if leftKey and not tuck then
+				if leftKey then
 					local h=items[leftKey]
 					if h then
 						wp[leftKey]=larmP
