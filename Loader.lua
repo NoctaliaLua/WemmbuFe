@@ -2052,6 +2052,10 @@ local reanimate=function()
 							end
 						end
 						warn("Wemmbu FE: lost "..lostlog.name(part)..": "..why..", nearest other player "..(nearest and (math.floor(nearest*10)/10).." studs" or "none")..", you are "..(math.floor(vmagnitude(pos-ppos)*10)/10).." studs away")
+						local onlost=hooks.onLost
+						if onlost then
+							onlost()
+						end
 					end
 					i.c=nil
 					i.l=insGet(part,"Position")
@@ -2265,6 +2269,7 @@ local reanimate=function()
 		setHooks=function(h)
 			hooks.frame=h.frame
 			hooks.noFling=h.noFling
+			hooks.onLost=h.onLost
 		end,
 		resetmode=function() --goes back to the default animation (cancels the emote that is playing)
 			if mode~="default" then
@@ -4008,7 +4013,20 @@ local main=function()
 				end
 			end))
 
-			t.setHooks({frame=frame})
+			--Just A Baseplate has a "-net" chat command that helps the hats stay yours (found in game: "/e -net" makes them stay up longer).
+			--it is sent once right after the joints break, and again whenever a hat gets lost (at most every 5 seconds)
+			local netCd=0
+			local sendNet=function()
+				if (game.PlaceId~=JUST_A_BASEPLATE) or (osclock()<netCd) then
+					return
+				end
+				netCd=osclock()+5
+				tspawn(function()
+					typeChat("/e -net")
+				end)
+			end
+			t.setHooks({frame=frame,onLost=sendNet})
+			tdelay(0.8,sendNet)
 			setSpeed()
 
 			RT={t=t,S=S,cleanup=function()
