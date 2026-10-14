@@ -2318,12 +2318,12 @@ local main=function()
 
 	--asset ids are strings on purpose, 15 digit numbers turn into 1.2345e+14 when you tostring them
 	local HAT={
-		sword="124575002491795",axe="99393954464842",mace="74713040247427",elytra="73520544743028",shield="71625956595175",
+		sword="124575002491795",axe="99393954464842",mace="74713040247427",elytra="73520544743028",
 		apple="118384788583276",pearl="130626434409219",totem="85211796680168",rod="85039820346123",tnt="92170934617492",helmet="116696255755442",
 		head="82568259312062",larm="104075618225813",rarm="127306158366923",lleg="136738875728760",rleg="76207029079860",torso="101716545946094"
 	}
 	local ALL_IDS={}
-	for _,key in next,{"head","torso","larm","rarm","lleg","rleg","sword","axe","mace","elytra","shield","apple","pearl","totem","rod","tnt","helmet"} do
+	for _,key in next,{"head","torso","larm","rarm","lleg","rleg","sword","axe","mace","elytra","apple","pearl","totem","rod","tnt","helmet"} do
 		tinsert(ALL_IDS,HAT[key])
 	end
 	--the 6 hats that are the body (they are aligned to the r6 parts). part is the r6 part they replace
@@ -2331,7 +2331,7 @@ local main=function()
 		{key="head",part="Head"},{key="torso",part="Torso"},{key="larm",part="Left Arm"},
 		{key="rarm",part="Right Arm"},{key="lleg",part="Left Leg"},{key="rleg",part="Right Leg"}
 	}
-	local ITEM_KEYS={"sword","axe","mace","elytra","shield","apple","pearl","totem","rod","tnt","helmet"}
+	local ITEM_KEYS={"sword","axe","mace","elytra","apple","pearl","totem","rod","tnt","helmet"}
 
 	local SONGS={
 		{name="ALTERED OBSIDIAN"},
@@ -2354,10 +2354,10 @@ local main=function()
 	-- in game: ] picks the next hat (it gets shown in its place), [ turns it 15 degrees (items) or to the next of the 24 orientations (body),
 	-- \ goes through the 24 orientations of an item. every press prints the number, put it in here
 	----------------------------------------------------------------------------
-	local ROLL={sword=0,axe=0,mace=0,elytra=0,shield=0,apple=0,pearl=0,totem=0,rod=0,tnt=0,helmet=0} --15 degree steps, 0 to 23
-	local FLIP={sword=0,axe=0,mace=0,elytra=0,shield=0,apple=0,pearl=0,totem=0,rod=0,tnt=0,helmet=0} --orientation, 0 to 23
+	local ROLL={sword=0,axe=0,mace=0,elytra=0,apple=0,pearl=0,totem=0,rod=0,tnt=0,helmet=0} --15 degree steps, 0 to 23
+	local FLIP={sword=0,axe=0,mace=0,elytra=0,apple=0,pearl=0,totem=0,rod=0,tnt=0,helmet=0} --orientation, 0 to 23
 	local ORI={head=1,torso=1,larm=1,rarm=1,lleg=1,rleg=1} --orientation of the body hats, 1 to 24
-	local CAL_LIST={"sword","axe","mace","rod","apple","pearl","totem","shield","elytra","helmet","tnt","head","torso","larm","rarm","lleg","rleg"}
+	local CAL_LIST={"sword","axe","mace","rod","apple","pearl","totem","elytra","helmet","tnt","head","torso","larm","rarm","lleg","rleg"}
 
 	--the 24 ways to turn something by multiples of 90 degrees, the first one is no turn at all
 	local ORI24={}
@@ -2524,14 +2524,12 @@ local main=function()
 		print("   Scroll wheel to firework")
 		print("5 - Equips helmet")
 		print(" ")
-		print("E - Equips shield")
-		print("   Scroll wheel - Holds up Shield")
-		print("R - Equips totem")
-		print("T - Equips golden apple")
+		print("E - Equips totem")
+		print("R - Equips golden apple")
 		print("   Scroll wheel - Eats it")
-		print("Y - Equips ender pearl")
+		print("T - Equips ender pearl")
 		print("   Scroll wheel - Throws ender pearl")
-		print("U - Equips orbital strike")
+		print("Y - Equips orbital strike")
 		print("   Scroll wheel - Launch orbital strike")
 		print(" ")
 		print("Z - Lay down")
@@ -2931,7 +2929,7 @@ local main=function()
 			twait(0.3)
 			typeChat("/e -gh 124575002491795 101716545946094 116696255755442 82568259312062 130626434409219 136738875728760 76207029079860 127306158366923 104075618225813 118384788583276 99393954464842 73520544743028")
 			twait(6.5)
-			typeChat("/e -gh 85211796680168 74713040247427 85039820346123 92170934617492 71625956595175")
+			typeChat("/e -gh 85211796680168 74713040247427 85039820346123 92170934617492")
 			twait(1)
 			hatsBusy=false
 		end)
@@ -3046,16 +3044,12 @@ local main=function()
 		apple={kind="small",hand="right",pos=v3(0,-0.55,-0.7),yaw=pi/2}, --0.5 up and 0.5 forward
 		pearl={kind="small",hand="right",pos=v3(0,-0.55,-0.7),yaw=pi/2},
 		totem={kind="small",hand="left",pos=v3(0,-0.55,-0.85),yaw=pi/2},
-		shield={kind="shield",hand="left"},
 		elytra={kind="worn"},
 		helmet={kind="worn"},
 		tnt={kind="small",hand="right",pos=v3(0,-1.05,-0.2)} --only shown in the hand by the calibration, otherwise it falls from the sky (orbital strike)
 	}
 	--rotations are in the hat's own axes (y 90 = angles(0,pi/2,0), z 180 = angles(0,0,pi))
-	local SHIELD_FIX=angles(0,-pi/2,pi) --y -90 and z 180
-	local HELM_FIX=angles(0,pi/2,pi/2) --y 90 and z 90
-	local SHIELD_IDLE=cfMul(fm(v3(-0.75,-0.1,0),v3(0,1,0),v3(-1,0,0)),SHIELD_FIX) --strapped to the outside of the left arm (arm space)
-	local SHIELD_BLOCK=cfMul(fm(v3(-0.85,0.35,-1.8),v3(0,1,0),v3(0,0,-1)),SHIELD_FIX) --held up in front of you (torso space)
+	local HELM_FIX=cfMul(angles(pi/2,0,0),angles(0,0,pi/2)) --x 90 and then z 90
 	local HELM_HAND=cfMul(fm(v3(0,-1.1,-0.1),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --in the left hand (arm space)
 	local HELM_WORN=cfMul(fm(v3(0,0.1,0),v3(0,1,0),v3(0,0,-1)),HELM_FIX) --on the head (head space)
 	local ELYTRA_BACK=fm(v3(0,-1.0,0.92),v3(0,1,0),v3(0,0,1)) --on the back (torso space), 1.2 studs lower and 0.3 further back than the first version
@@ -3066,11 +3060,14 @@ local main=function()
 		axe={yaw=rad(180),up=0.5},
 		rod={yaw=rad(180),up=-0.8}
 	}
-	local TWEAK_YAW_STEP=rad(15)
-	local TWEAK_KEYS={ --key name -> {item, what, amount}
-		LeftBracket={"mace","yaw"},RightBracket={"mace","up",0.1},
-		Semicolon={"axe","yaw"},Quote={"axe","up",0.1},
-		Comma={"rod","yaw"},Period={"rod","up",-0.1}
+	--extra turns for the golden apple, ender pearl, totem and helmet: every press of its three keys turns the item 45 degrees around its x, y or z axis
+	local UROT={apple=cf_0,pearl=cf_0,totem=cf_0,helmet=cf_0}
+	local UROT_LOG={apple="",pearl="",totem="",helmet=""}
+	local UROT_KEYS={
+		G={"apple","x"},H={"apple","y"},J={"apple","z"},
+		K={"pearl","x"},L={"pearl","y"},Semicolon={"pearl","z"},
+		Minus={"totem","x"},Equals={"totem","y"},BackSlash={"totem","z"},
+		Home={"helmet","x"},PageUp={"helmet","y"},PageDown={"helmet","z"}
 	}
 	local UPFWD_Z=v3(0,0,-1)
 
@@ -3402,7 +3399,7 @@ local main=function()
 							local j=getPartJoint(part)
 							if j and j.Part1 then
 								used[part]=true
-								if (key=="pearl") or (key=="tnt") then
+								if true then
 									part.fx=true --these fly across the map: the engine gives them the velocity of the body instead of their own (fast) one
 								end
 								local canon,len=canonOf(info)
@@ -3434,14 +3431,19 @@ local main=function()
 				end
 				for _,b in next,BODY do
 					local info=hatmeshes[HAT[b.key]]
-					if info and not bodyJoint[b.key] then
+					if info then
 						for part in next,cframes do
 							if part.m and sfind(part.m,info.m) and sfind(part.t,info.t) then
-								local j=getPartJoint(part)
-								if j then
-									bodyJoint[b.key]=j
-									break
+								if (b.key=="head") or (b.key=="torso") then
+									part.fx=true --the head and the torso were the ones that fell off, they get the same treatment as the swords of NoctaliaGlitcher
 								end
+								if not bodyJoint[b.key] then
+									local j=getPartJoint(part)
+									if j then
+										bodyJoint[b.key]=j
+									end
+								end
+								break
 							end
 						end
 					end
@@ -3520,6 +3522,9 @@ local main=function()
 				if tw and tw.flip then
 					tg=cfMul(tg,angles(0,0,tw.flip))
 				end
+				if UROT[key] then
+					tg=cfMul(tg,UROT[key])
+				end
 				return tg
 			end
 
@@ -3527,7 +3532,7 @@ local main=function()
 			-- actions
 			----------------------------------------------------------------
 			local setSpeed=function()
-				setWalkSpeed(S.blocking and 12 or 16) --blocking with the shield cuts the speed by 25%
+				setWalkSpeed(16)
 			end
 			local stopGlide=function()
 				if S.gliding then
@@ -3638,10 +3643,6 @@ local main=function()
 			local onMB3=function(down)
 				S.mb3=down
 				if not down then
-					if S.blocking then
-						S.blocking=false
-						setSpeed()
-					end
 					S.eatStart=nil
 					return
 				end
@@ -3656,9 +3657,6 @@ local main=function()
 					orbitalStrike()
 				elseif S.elytra then
 					boost()
-				elseif S.left=="shield" then
-					S.blocking=true
-					setSpeed()
 				end
 			end
 			local equipRight=function(key)
@@ -3678,10 +3676,6 @@ local main=function()
 					S.left=nil
 				else
 					S.left=key
-				end
-				if S.left~="shield" and S.blocking then
-					S.blocking=false
-					setSpeed()
 				end
 			end
 			local toggleElytra=function()
@@ -3872,9 +3866,6 @@ local main=function()
 						lp,lo,lt=kf(KEYS_HELMET,helmX)
 					end
 				end
-				if (not lp) and S.blocking and (S.left=="shield") then
-					lp,lo,lt=BLOCK_POSE[1],BLOCK_POSE[2],BLOCK_POSE[3]
-				end
 				S.outL=S.outL+((leftKey and HOLD_OUT or 0)-S.outL)*min(dt*10,1)
 				if lp then
 					S.lastL={lp,lo,lt}
@@ -3887,7 +3878,6 @@ local main=function()
 					local pose=S.lastL
 					lsFinal=Lerp(lsFinal,armPose(-1,pose[1],pose[2],pose[3]),S.wL)
 				end
-				S.blockW=S.blockW+(((S.blocking and (S.left=="shield")) and 1 or 0)-S.blockW)*min(dt*12,1)
 
 				--the head tilts a bit while the helmet is pushed on
 				local neckFinal=jNeck.raw
@@ -3916,19 +3906,8 @@ local main=function()
 				if leftKey then
 					local h=items[leftKey]
 					if h then
-						if leftKey=="shield" then
-							if S.blockW>0.01 then
-								local armRel=cfMul(lsFinal,Inverse(jLS.real.C1))
-								wp.shield=torsoP
-								wt.shield=Lerp(cfMul(armRel,SHIELD_IDLE),SHIELD_BLOCK,S.blockW)
-							else
-								wp.shield=larmP
-								wt.shield=SHIELD_IDLE
-							end
-						else
-							wp[leftKey]=larmP
-							wt[leftKey]=holdTarget(leftKey,h)
-						end
+						wp[leftKey]=larmP
+						wt[leftKey]=holdTarget(leftKey,h)
 					end
 				end
 				if items.elytra and (S.elytra or cs=="elytra") then
@@ -3936,25 +3915,27 @@ local main=function()
 					wt.elytra=ELYTRA_BACK
 				end
 				if items.helmet then
+					local helmHand=cfMul(HELM_HAND,UROT.helmet)
+					local helmWorn=cfMul(HELM_WORN,UROT.helmet)
 					if helmX then
 						if helmX<0.30 then
 							--still behind your back
 						elseif helmX<0.70 then
 							wp.helmet=larmP
-							wt.helmet=HELM_HAND
+							wt.helmet=helmHand
 						elseif helmX<0.80 then
 							--from the hand to the head
 							local armRel=cfMul(lsFinal,Inverse(jLS.real.C1))
 							local headRel=cfMul(neckFinal,Inverse(jNeck.real.C1))
 							wp.helmet=torsoP
-							wt.helmet=Lerp(cfMul(armRel,HELM_HAND),cfMul(headRel,HELM_WORN),smooth((helmX-0.70)/0.10))
+							wt.helmet=Lerp(cfMul(armRel,helmHand),cfMul(headRel,helmWorn),smooth((helmX-0.70)/0.10))
 						else
 							wp.helmet=headP
-							wt.helmet=HELM_WORN
+							wt.helmet=helmWorn
 						end
 					elseif S.helmet or (cs=="helmet") then
 						wp.helmet=headP
-						wt.helmet=HELM_WORN
+						wt.helmet=helmWorn
 					end
 				end
 
@@ -4035,26 +4016,23 @@ local main=function()
 				elseif name=="Five" then
 					S.calibShow=nil
 					startHelmet()
-				elseif name=="E" then equipLeft("shield")
-				elseif name=="R" then equipLeft("totem")
-				elseif name=="T" then equipRight("apple")
-				elseif name=="Y" then equipRight("pearl")
-				elseif name=="U" then equipRight("rod")
+				elseif name=="E" then equipLeft("totem")
+				elseif name=="R" then equipRight("apple")
+				elseif name=="T" then equipRight("pearl")
+				elseif name=="Y" then equipRight("rod")
 				elseif name=="F" then inspect()
 				elseif name=="Q" then resetAll()
 				elseif name=="Right" then music.step(1) --the arrow keys
 				elseif name=="Left" then music.step(-1)
 				elseif name=="Up" then music.volumeStep(0.1)
 				elseif name=="Down" then music.volumeStep(-0.1)
-				elseif TWEAK_KEYS[name] then
-					local k=TWEAK_KEYS[name]
-					local tw=TWEAK[k[1]]
-					if k[2]=="yaw" then
-						tw.yaw=tw.yaw+TWEAK_YAW_STEP
-					else
-						tw.up=tw.up+k[3]
-					end
-					print(string.format("Wemmbu FE: %s yaw %.0f degrees, up %.1f studs   ->   TWEAK.%s={yaw=rad(%.0f),up=%.1f}",k[1],math.deg(tw.yaw),tw.up,k[1],math.deg(tw.yaw),tw.up))
+				elseif UROT_KEYS[name] then
+					--turns the item 45 degrees more around its x, y or z axis (in the order you press them)
+					local k=UROT_KEYS[name]
+					local axis=(k[2]=="x") and angles(pi/4,0,0) or ((k[2]=="y") and angles(0,pi/4,0) or angles(0,0,pi/4))
+					UROT[k[1]]=cfMul(UROT[k[1]],axis)
+					UROT_LOG[k[1]]=UROT_LOG[k[1]]..k[2]..""
+					print("Wemmbu FE: "..k[1].." turned 45 degrees on "..k[2].."   (presses so far, in order: "..UROT_LOG[k[1]]..")")
 				end
 			end))
 			tinsert(cons,Connect(insGet(uis,"InputEnded"),function(inp)
