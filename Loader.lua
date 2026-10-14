@@ -2883,23 +2883,30 @@ local main=function()
 				box=ec and ec:FindFirstChild("TextBox",true)
 			end
 			assert(box,"no chat bar")
-			box:CaptureFocus()
-			twait(0.05)
-			box.Text=message
-			twait(0.05)
-			local pressed=pcall(function()
-				local vim=game:GetService("VirtualInputManager")
-				vim:SendKeyEvent(true,e.KeyCode.Return,false,game)
-				twait(0.02)
-				vim:SendKeyEvent(false,e.KeyCode.Return,false,game)
-			end)
-			if not pressed then
-				if keypress and keyrelease then
-					keypress(0x0D)
-					twait(0.02)
-					keyrelease(0x0D)
-				elseif firesignal then
-					firesignal(box.FocusLost,true)
+			--tries up to 4 times: if the message is still in the box after enter was pressed it was not sent
+			for attempt=1,4 do
+				box:CaptureFocus()
+				twait(0.15)
+				box.Text=message
+				twait(0.15)
+				local pressed=pcall(function()
+					local vim=game:GetService("VirtualInputManager")
+					vim:SendKeyEvent(true,e.KeyCode.Return,false,game)
+					twait(0.05)
+					vim:SendKeyEvent(false,e.KeyCode.Return,false,game)
+				end)
+				if not pressed then
+					if keypress and keyrelease then
+						keypress(0x0D)
+						twait(0.05)
+						keyrelease(0x0D)
+					elseif firesignal then
+						firesignal(box.FocusLost,true)
+					end
+				end
+				twait(0.25)
+				if box.Text~=message then
+					break
 				end
 			end
 		end)
@@ -2921,12 +2928,12 @@ local main=function()
 		end
 		hatsBusy=true
 		print("Wemmbu FE: loading hats...")
-		showLoading("Wait!","The hats are loading, do not touch anything",7)
+		showLoading("Wait!","The hats are loading, do not touch anything",11)
 		tspawn(function()
 			typeChat("/e -ch")
-			twait(0.3)
+			twait(1)
 			typeChat("/e -pd")
-			twait(0.3)
+			twait(1)
 			typeChat("/e -gh 124575002491795 101716545946094 116696255755442 82568259312062 130626434409219 136738875728760 76207029079860 127306158366923 104075618225813 118384788583276 99393954464842 73520544743028")
 			twait(6.5)
 			typeChat("/e -gh 85211796680168 74713040247427 85039820346123 92170934617492")
@@ -3060,14 +3067,12 @@ local main=function()
 		axe={yaw=rad(180),up=0.5},
 		rod={yaw=rad(180),up=-0.8}
 	}
-	--extra turns for the golden apple, ender pearl, totem and helmet: every press of its three keys turns the item 45 degrees around its x, y or z axis
-	local UROT={apple=cf_0,pearl=cf_0,totem=cf_0,helmet=cf_0}
-	local UROT_LOG={apple="",pearl="",totem="",helmet=""}
-	local UROT_KEYS={
-		G={"apple","x"},H={"apple","y"},J={"apple","z"},
-		K={"pearl","x"},L={"pearl","y"},Semicolon={"pearl","z"},
-		Minus={"totem","x"},Equals={"totem","y"},BackSlash={"totem","z"},
-		Home={"helmet","x"},PageUp={"helmet","y"},PageDown={"helmet","z"}
+	--extra turns found in game (45 degree presses): apple x,x,z,z - pearl x,x then z six times - totem x,x then z six times - helmet x four times
+	local UROT={
+		apple=cfMul(angles(pi/2,0,0),angles(0,0,pi/2)),
+		pearl=cfMul(angles(pi/2,0,0),angles(0,0,pi*1.5)),
+		totem=cfMul(angles(pi/2,0,0),angles(0,0,pi*1.5)),
+		helmet=angles(pi,0,0)
 	}
 	local UPFWD_Z=v3(0,0,-1)
 
@@ -3178,7 +3183,7 @@ local main=function()
 				act=nil,inspect=nil,eatStart=nil,helm=nil,
 				pearl=nil,pearlCd=0,tnt=nil,
 				gliding=false,glideStart=0,boostCd=0,
-				attackCd=0,mb3=false,
+				attackCd=0,mb3=false,fastUntil=0,nearCheck=0,near=false,
 				outR=0,outL=0,wR=0,wL=0,blockW=0,lastR=nil,lastL=nil,
 				calibShow=nil,calibIdx=0,
 				nextResolve=0
@@ -3574,6 +3579,7 @@ local main=function()
 								local d=insGet(rp,"Position")-here
 								local flat=sqrt(v3Get(d,"X")^2+v3Get(d,"Z")^2)
 								if (flat<=5) and (abs(v3Get(d,"Y"))<=3) then
+									S.fastUntil=sine+1.6
 									t.launch(55) --wind burst: the hit throws you up again (a bit more than a jump, much more makes the hats lose you)
 									return
 								end
@@ -3765,6 +3771,7 @@ local main=function()
 			----------------------------------------------------------------
 			-- per frame: arm poses, joints, hats
 			----------------------------------------------------------------
+			local me=lp --the local player (lp is a different thing inside frame)
 			local wp,wt={},{} --where each item goes this frame: parent part, target
 			local lastT=sine
 			local frame=function()
@@ -3896,14 +3903,36 @@ local main=function()
 				--hats
 				tclear(wp)
 				tclear(wt)
-				if rightKey then
+				--flying / being launched fast past another player with a big weapon in the hand makes everything fall off (the player's body touches the
+				--weapon and takes the hats over), so the held items stay underground until you are away from them or slow again
+				local tuck=false
+				if S.gliding or t.impulseActive() or (sine<S.fastUntil) then
+					if sine>=S.nearCheck then
+						S.nearCheck=sine+0.1
+						S.near=false
+						local here=t.getCfr().Position
+						for _,plr in next,GetPlayers(plrs) do
+							if plr~=me then
+								local rp2=rootOf(plr)
+								if rp2 and ((insGet(rp2,"Position")-here).Magnitude<40) then
+									S.near=true
+									break
+								end
+							end
+						end
+					end
+					tuck=S.near
+				else
+					S.near=false
+				end
+				if rightKey and not tuck then
 					local h=items[rightKey]
 					if h and ITEM[rightKey].hand=="right" then
 						wp[rightKey]=rarmP
 						wt[rightKey]=holdTarget(rightKey,h,spin)
 					end
 				end
-				if leftKey then
+				if leftKey and not tuck then
 					local h=items[leftKey]
 					if h then
 						wp[leftKey]=larmP
@@ -4026,13 +4055,6 @@ local main=function()
 				elseif name=="Left" then music.step(-1)
 				elseif name=="Up" then music.volumeStep(0.1)
 				elseif name=="Down" then music.volumeStep(-0.1)
-				elseif UROT_KEYS[name] then
-					--turns the item 45 degrees more around its x, y or z axis (in the order you press them)
-					local k=UROT_KEYS[name]
-					local axis=(k[2]=="x") and angles(pi/4,0,0) or ((k[2]=="y") and angles(0,pi/4,0) or angles(0,0,pi/4))
-					UROT[k[1]]=cfMul(UROT[k[1]],axis)
-					UROT_LOG[k[1]]=UROT_LOG[k[1]]..k[2]..""
-					print("Wemmbu FE: "..k[1].." turned 45 degrees on "..k[2].."   (presses so far, in order: "..UROT_LOG[k[1]]..")")
 				end
 			end))
 			tinsert(cons,Connect(insGet(uis,"InputEnded"),function(inp)
