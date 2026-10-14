@@ -2888,8 +2888,17 @@ local main=function()
 			for attempt=1,4 do
 				box:CaptureFocus()
 				twait(0.15)
-				box.Text=message
+				box.Text=""
 				twait(0.15)
+				--the chat suggests commands while you type ("/e" turned into "/cleare" at enter), so set the text again until it stays exactly like it should
+				for fix=1,4 do
+					box.Text=message
+					twait(0.25)
+					if box.Text==message then
+						break
+					end
+				end
+				twait(0.1)
 				local pressed=pcall(function()
 					local vim=game:GetService("VirtualInputManager")
 					vim:SendKeyEvent(true,e.KeyCode.Return,false,game)
@@ -3488,8 +3497,14 @@ local main=function()
 			local worldTarget=function(worldCF)
 				return cfMul(Inverse(cframes[rootP]),worldCF)
 			end
-			local hide=function(h) --exactly like NoctaliaGlitcher: under the root part, moving with you
-				place(h,rootP,hideCF)
+			local hide=function(h)
+				if S.groundY then
+					--elytra on: hidden hats stay at the height they had on the ground (underground) instead of rising with you
+					local here=t.getCfr().Position
+					place(h,rootP,worldTarget(cf(here.X,S.groundY-HIDE_DEPTH,here.Z)))
+				else
+					place(h,rootP,hideCF) --like NoctaliaGlitcher: under the root part, moving with you
+				end
 			end
 			local holdTarget=function(key,h,spin)
 				local d=ITEM[key]
@@ -3562,7 +3577,7 @@ local main=function()
 								local d=insGet(rp,"Position")-here
 								local flat=sqrt(v3Get(d,"X")^2+v3Get(d,"Z")^2)
 								if (flat<=5) and (abs(v3Get(d,"Y"))<=3) then
-										t.launch(55) --wind burst: the hit throws you up again (a bit more than a jump, much more makes the hats lose you)
+										t.launch(75) --wind burst: the hit throws you up again (higher than a jump, /e -net keeps the hats on you)
 									return
 								end
 							end
@@ -3669,6 +3684,7 @@ local main=function()
 			local toggleElytra=function()
 				S.calibShow=nil
 				S.elytra=not S.elytra
+				S.groundY=S.elytra and t.getCfr().Position.Y or nil
 				if not S.elytra then
 					stopGlide()
 					t.impulse(v3_0)
@@ -3686,6 +3702,7 @@ local main=function()
 				S.right=nil
 				S.left=nil
 				S.elytra=false
+				S.groundY=nil
 				S.helmet=false
 				S.helm=nil
 				S.act=nil
@@ -3761,6 +3778,14 @@ local main=function()
 				if sine>=S.nextResolve then
 					S.nextResolve=sine+1
 					resolve()
+				end
+
+				--elytra on: remember the height you have while standing on the ground, hidden hats stay down there
+				if S.elytra and (not S.gliding) and (not t.impulseActive()) then
+					local gd=t.groundDistance()
+					if gd and (gd<3.4) then
+						S.groundY=t.getCfr().Position.Y
+					end
 				end
 
 				--glide ends when you land and the boost has run out (not in the first moments, you are still on the ground then)
