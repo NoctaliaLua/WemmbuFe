@@ -1952,6 +1952,7 @@ local reanimate=function()
 			end
 		end
 		hooks.lastroot=pos
+		local alivevel=v3(cos(sine*4)*4,0,sin(sine*4)*4) --4 studs/s sideways, the direction turns around once every 1.6 seconds
 		for i,v in next,cframes do
 			local part=i.p
 
@@ -2024,6 +2025,15 @@ local reanimate=function()
 							insSet(part,"AssemblyLinearVelocity",vnormalize(vel1)*v3_xzL+v3_net)
 						else
 							insSet(part,"AssemblyLinearVelocity",vel1*v3_xz+v3_net)
+						end
+					end
+					--the console log showed that only the arms and legs never got lost: their idle sway always gives them some sideways velocity.
+					--hats that sit still on you (head, torso, hidden or held items while you stand) reported none and got taken over, so every hat
+					--that is not being reclaimed gets a small circling sideways velocity when it has (almost) none of its own
+					if not (claimtime and ((sine-claimtime)<retVelTime)) then
+						local lv=insGet(part,"AssemblyLinearVelocity")
+						if (v3Get(lv,"X")^2+v3Get(lv,"Z")^2)<16 then
+							insSet(part,"AssemblyLinearVelocity",lv+alivevel)
 						end
 					end
 					insSet(part,"CFrame",v)
@@ -3419,9 +3429,7 @@ local main=function()
 						for part in next,cframes do
 							if part.m and sfind(part.m,info.m) and sfind(part.t,info.t) then
 								used[part]=true
-								if (b.key=="head") or (b.key=="torso") then
-									part.fx=true --same as the swords of NoctaliaGlitcher (since this the head and torso stopped falling off when walking near players)
-								end
+								part.fx=nil --the body hats get their own velocity like the arms and legs (the arms and legs never got lost)
 								if not bodyJoint[b.key] then
 									local j=getPartJoint(part)
 									if j then
